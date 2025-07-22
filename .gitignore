@@ -1,0 +1,10 @@
+**/__pycache__/
+**/*.pyc
+
+*.jpg
+*.jpeg
+*.png
+
+**/.vscode/
+
+ocr/ocr_key.json
