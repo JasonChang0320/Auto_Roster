@@ -9,7 +9,6 @@ from ocr.ocr_config import ALLOWED_EXTENSIONS
 import os
 
 
-
 def is_allowed_file(filename: str) -> bool:
     return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
 
@@ -60,7 +59,8 @@ def image_to_text(path):
     with open(path, "rb") as image_file:
         content = image_file.read()
 
-    filename = path.split("/")[-1].split(".")[0]
+    filename = os.path.basename(path)
+
     image = vision.Image(content=content)
 
     response = client.text_detection(image=image)
@@ -70,7 +70,9 @@ def image_to_text(path):
         # print(texts[0].description)
 
         with open(
-            os.path.join(ocr_path, f"{filename}.json"), "w", encoding="utf-8"
+            os.path.join(ocr_path, f"{filename.split(".")[0]}.json"),
+            "w",
+            encoding="utf-8",
         ) as f:
             json.dump(
                 {"description": texts[0].description}, f, ensure_ascii=False, indent=2

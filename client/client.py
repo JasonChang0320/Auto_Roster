@@ -2,7 +2,7 @@ import requests
 import time
 
 # 設定上傳的 URL
-url = "http://127.0.0.1:8000/settup-schedule/"
+url = "http://127.0.0.1:8000/setup-schedule/"
 
 # 指定要上傳的圖片路徑
 file_name = "schedule_1.jpg"  # 替換成你本地的圖片路徑
@@ -13,8 +13,7 @@ try:
     with open(file_path, "rb") as f:
         print(file_name)
         files = {"file": (file_name, f, "image/png")}  # 指定檔名、文件物件與 MIME type
-        data = {"code": "456"}
-        response = requests.post(url, files=files, data=data)
+        response = requests.post(url, files=files)
 
     # 輸出結果
     if response.status_code == 200:

@@ -1,39 +1,57 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from flask import Flask, request, jsonify
 import os
-import nest_asyncio
-import asyncio
-from uvicorn import Config, Server
 from ocr.ocr_utils import get_target_image, image_to_text
+from ocr.process_text import text_to_calender_event_list
 
 from auto_calendar.calendar_utils import create_events_in_calendar
 
+# 初始化 Flask 應用
+app = Flask(__name__)
 
-app = FastAPI()
-
-
-@app.post("/settup-schedule/")
-async def settup_schedule(file: UploadFile = File(...), code: str = Form()):
-
-    file_path = get_target_image(file)
-
-    print(file_path)
-    texts = image_to_text(file_path)
-
-    # response = create_events_in_calendar(texts, code)
-
-    return file_path
+# 設定上傳暫存資料夾
+UPLOAD_FOLDER = "./uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 
-# 解決 event loop 衝突問題
-nest_asyncio.apply()
+@app.route("/setup-schedule/", methods=["POST"])
+def setup_schedule():
+    # 檢查是否有上傳檔案
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 400
+
+    file_path = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
+    file.save(file_path)
+
+    print(f"檔案已儲存到: {file_path}")
+    # 使用你的 OCR 工具處理圖片
+    try:
+        texts = image_to_text(file_path)
+
+        calender_event_list = text_to_calender_event_list(texts)
+
+        response = create_events_in_calendar(calender_event_list)
+
+        # 回傳結果
+        return (
+            jsonify(
+                {
+                    "file_path": file_path,
+                    "texts": texts,
+                    # 'calendar_response': response
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
-# 啟動 FastAPI 伺服器
-async def run_server():
-    config = Config(app=app, host="127.0.0.1", port=8000, loop="asyncio")
-    server = Server(config)
-    await server.serve()
-
-
-# 執行伺服器
-asyncio.run(run_server())
+if __name__ == "__main__":
+    print("Starting Flask server on http://127.0.0.1:8000")
+    app.run(host="127.0.0.1", port=8000, debug=True)

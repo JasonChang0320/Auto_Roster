@@ -8,3 +8,6 @@
 **/.vscode/
 
 ocr/ocr_key.json
+
+auto_calendar/client_secret.json
+auto_calendar/token.json
