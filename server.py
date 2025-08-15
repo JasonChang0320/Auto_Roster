@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 import os
 from ocr.ocr_utils import get_target_image, image_to_text
-from ocr.process_text import text_to_calender_event_list
+from ocr.process_text import text_to_calender_event_dict
 
 from auto_calendar.calendar_utils import create_events_in_calendar
 
@@ -32,9 +32,9 @@ def setup_schedule():
     try:
         texts = image_to_text(file_path)
 
-        calender_event_list = text_to_calender_event_list(texts)
+        year, month, new_event_dict = text_to_calender_event_dict(texts)
 
-        response = create_events_in_calendar(calender_event_list)
+        response = create_events_in_calendar(year, month, new_event_dict)
 
         # 回傳結果
         return (
