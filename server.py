@@ -9,7 +9,7 @@ from auto_calendar.calendar_utils import create_events_in_calendar
 app = Flask(__name__)
 
 # 設定上傳暫存資料夾
-UPLOAD_FOLDER = "./uploads"
+UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 

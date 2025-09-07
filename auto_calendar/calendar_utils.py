@@ -1,4 +1,5 @@
 import os.path
+import os
 import datetime
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -6,22 +7,33 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-
 # 如果修改了授權範圍，請刪除 token.json 檔案
 # 這是為了確保每次都重新進行授權流程
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
+
+
+# 獲取當前檔案的絕對路徑
+current_file_path = os.path.abspath(__file__)
+print("當前檔案路徑:", current_file_path)
+
+# 獲取當前檔案所在的目錄
+current_directory = os.path.dirname(current_file_path)
 
 
 def authenticate_google_calendar():
     creds = None
     # token.json 儲存了使用者的存取和刷新令牌，在第一次成功授權後自動建立
     if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+        creds = Credentials.from_authorized_user_file(
+            f"{current_directory}/token.json", SCOPES
+        )
     # 如果沒有有效的憑證或憑證已過期，則執行登入流程
     if not creds or not creds.valid:
 
         # client_secret.json 是你從 Google Cloud Console 下載的憑證檔案
-        flow = InstalledAppFlow.from_client_secrets_file("client_secret.json", SCOPES)
+        flow = InstalledAppFlow.from_client_secrets_file(
+            f"{current_directory}/client_secret.json", SCOPES
+        )
         creds = flow.run_local_server(port=0)
         # 將憑證儲存起來以供下次使用
         with open("token.json", "w") as token:
@@ -37,11 +49,14 @@ def get_events_in_month(service, calendar_id="primary", year=None, month=None):
         month = datetime.now().month
 
     # 設定月份開始和結束時間
-    start_date = datetime.datetime(year, month, 1)
+    start_date = datetime.datetime(year, month, 1) - datetime.timedelta(hours=8)
     if month == 12:
-        end_date = datetime.datetime(year + 1, 1, 1)
+        next_month = datetime.datetime(year + 1, 1, 1)
+
     else:
-        end_date = datetime.datetime(year, month + 1, 1)
+        next_month = datetime.datetime(year, month + 1, 1)
+
+    end_date = next_month - datetime.timedelta(hours=8)
 
     time_min = start_date.isoformat() + "Z"
     time_max = end_date.isoformat() + "Z"
@@ -137,8 +152,8 @@ def update_exist_ocr_events(service, current_event_dict, new_event_dict):
             )
 
             print(f"✓ 成功新增事件")
-            print(f"更新前:{current_date_event_dict}")
-            print(f"更新後:{update_date_event_dict}")
+            print(f"更新前:{current_date_event_dict['summary']}")
+            print(f"更新後:{update_date_event_dict['summary']}")
 
         except Exception as e:
 
@@ -179,7 +194,7 @@ def create_new_event(service, to_create_event):
 def create_events_in_calendar(year, month, new_event_dict):
     """
     year = 2025
-    month = 8
+    month = 9
 
     new_event_dict = calender_event_dict # key: date, value: event
     """
@@ -195,8 +210,13 @@ def create_events_in_calendar(year, month, new_event_dict):
         service, current_event_dict, new_event_dict
     )
 
+    count = 0
     for event in to_create_event_list:
 
         create_new_event(service, event)
 
-        break
+        # count += 1
+
+        # if count > 10:
+        #     print("已新增10個事件，停止新增")
+        #     break

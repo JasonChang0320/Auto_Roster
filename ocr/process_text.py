@@ -15,6 +15,16 @@ CLASS_DICT = {
 }
 
 
+def load_json():
+    import json
+
+    with open("ocr_result/2025_09.json", "r", encoding="utf-8") as file:
+        data = json.load(file)
+    texts = data["description"]
+
+    return texts
+
+
 def text_to_calender_event_dict(texts):
     """
     ocr 後，處理文字轉換為日曆事件列表提供google calender api 使用
@@ -22,9 +32,11 @@ def text_to_calender_event_dict(texts):
         "description1": "11:05\n7Я, 2025 ✓\n+\nIll 4G 964\n=\nBC 7\nJB 1\nOff 8\nDB 3\n11FBC 12\n剩餘年假 0\n30 週一 1週二 2週三 3 週四\n11FBC 11FBC| 11FBC |11FBC\n4週五\n5週六\n6 週日\nOff\n炎上\n11FBC 11FBC\n計價盤點\n7\n8\n9\n11FBC 11FBC |11FBC\n|小暑\n14\nBC\n15\n11FBC\n16\nBC\n11FBC\n10\n11\nOff\n「烏紗 12:3\n17\n18\n11FBC\nOff\nBLS14:3\n12\nOff\n13\nDB\n19\nOff\n20\n11FBC\n21\nBC\n22\nDB\n|大暑\n23\nBC\n24\nBC\n25\nOff\n26\nDB\n27\nBC\n28\nJB\n29\nOff\n30\nOff\n31\n4\nOff\n圓山\n5\nOff\n6\n00\nBC\n1\nBC\n2\nBC\n張有事\n3\nBC\n7\nBC\n8\n9\nDB\nBC\n立秋 父親節\n88\n10\nBC\nDB",
         "description2": "11:05 1\n8Я, 2025\n+\nIll 4G 974\n=\nBC 9\nJB 4\nOff 4\nDB 3\n剩餘年假 0\n28 週一\n29 週二\n30 週三\n31 週四\n1週五\n2週六\n3 週日\nJB\nOff\nOff\nBC\nBC\nBC\nBC\n張有事\n4\nOff\n圓山\n5\nOff\n6\nBC\n7\nBC\n8\nDB\n9\nBC\n立秋\n父親節\n10\nDB\n11\nOff\n12\nBC\n13\nJB\n14\nJB\n15\nJB\n16\nJB\n17\nOff\n展覽\n18\nDB\n19\nBC\n20\nBC\n25\n26\n24\n21\n22\n23\n24\n12\n27\n28\n29\n1\n2\n3\n4\n「軍人節\n處暑\n30\n30\nLO\n5\n6\n7\n祖父母節\n31\n中元節\n囍宴 14:3~\nAD\nP Unlock exclusive features.\n00",
     }
+
+    texts = load_json()
     """
 
-    year, month = get_year_month(data["description2"])
+    year, month = get_year_month(texts)
 
     # 該月1號
     weekday_number = get_weekday_of_first_day(year, month)
@@ -32,7 +44,7 @@ def text_to_calender_event_dict(texts):
     # 該月的天數
     num_days = calendar.monthrange(year, month)[1]
 
-    all_class_list = get_all_class_list(data["description2"])
+    all_class_list = get_all_class_list(texts)
 
     current_class_list = all_class_list[weekday_number : weekday_number + num_days]
 
@@ -46,7 +58,9 @@ def text_to_calender_event_dict(texts):
 
 
 def get_year_month(string):
-    date_pattern = r"(\d+)Я, (\d+)"
+    string = string.replace(" ", "")
+    date_pattern = r"(\d+)Я,(\d+)"
+    
     match = re.search(date_pattern, string)
     if match:
         month = int(match.group(1))
@@ -64,11 +78,11 @@ def get_weekday_of_first_day(year, month):
     return weekday_num
 
 
-def get_all_class_list(text):
+def get_all_class_list(texts):
 
     all_class_list = []
 
-    text_list = text.split("\n")
+    text_list = texts.replace(" ", "").split("\n")
 
     keyword = "剩餘年假"
 
