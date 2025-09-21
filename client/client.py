@@ -5,7 +5,7 @@ import time
 url = "http://127.0.0.1:8000/setup-schedule/"
 
 # 指定要上傳的圖片路徑
-file_name = "2025_09.jpg"  # 替換成你本地的圖片路徑
+file_name = "2025_10.jpg"  # 替換成你本地的圖片路徑
 file_path = f"./client_image/{file_name}"
 # 使用 requests 上傳檔案
 

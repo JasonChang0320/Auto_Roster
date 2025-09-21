@@ -6,7 +6,7 @@ CLASS_DICT = {
     "BC": {"start_hour": "08:00:00"},
     "DB": {"start_hour": "10:00:00"},
     "JB": {"start_hour": "16:00:00"},
-    "RA": {"start_hour": "00:00:00"},
+    "RA": {"start_hour": "23:50:00"},
     "OFF": {"start_hour": "00:00:00"},
     "11FBC": {"start_hour": "08:00:00"},
     "11FDB": {"start_hour": "10:00:00"},
@@ -58,15 +58,30 @@ def text_to_calender_event_dict(texts):
 
 
 def get_year_month(string):
+
     string = string.replace(" ", "")
-    date_pattern = r"(\d+)Я,(\d+)"
-    
-    match = re.search(date_pattern, string)
+    date_pattern1 = r"(\d+)Я,(\d+)"
+    date_pattern2 = r"(\d+)A,(\d+)"
+
+    match = re.search(date_pattern1, string)
     if match:
         month = int(match.group(1))
         year = int(match.group(2))
         print(f"班表年份和月份: {year}年{month}月")
-    return year, month
+
+        return year, month
+
+    match = re.search(date_pattern2, string)
+
+    if match:
+
+        month = int(match.group(1))
+        year = int(match.group(2))
+        print(f"班表年份和月份: {year}年{month}月")
+
+        return year, month
+
+    raise ValueError("無法從字串中解析出年份和月份")
 
 
 def get_weekday_of_first_day(year, month):
