@@ -139,6 +139,8 @@ def update_exist_ocr_events(service, current_event_dict, new_event_dict):
         update_date_event_dict = current_date_event_dict.copy()
 
         update_date_event_dict["summary"] = new_event["summary"]
+        update_date_event_dict["start"] = new_event["start"]
+        update_date_event_dict["end"] = new_event["end"]
 
         try:
             updated_event = (
