@@ -3,14 +3,14 @@ import os
 import datetime
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import InstalledAppFlow, Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from flask import url_for
 
 # 如果修改了授權範圍，請刪除 token.json 檔案
 # 這是為了確保每次都重新進行授權流程
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
-
 
 # 獲取當前檔案的絕對路徑
 current_file_path = os.path.abspath(__file__)
@@ -19,11 +19,13 @@ print("當前檔案路徑:", current_file_path)
 # 獲取當前檔案所在的目錄
 current_directory = os.path.dirname(current_file_path)
 
+user_credential_folder = f"{current_directory}/user_credentials"
+
 
 def authenticate_google_calendar():
     creds = None
     # token.json 儲存了使用者的存取和刷新令牌，在第一次成功授權後自動建立
-    if os.path.exists("token.json"):
+    if os.path.exists(f"{current_directory}/token.json"):
         creds = Credentials.from_authorized_user_file(
             f"{current_directory}/token.json", SCOPES
         )
@@ -32,13 +34,67 @@ def authenticate_google_calendar():
 
         # client_secret.json 是你從 Google Cloud Console 下載的憑證檔案
         flow = InstalledAppFlow.from_client_secrets_file(
-            f"{current_directory}/client_secret.json", SCOPES
+            f"{current_directory}/client_secret_desktop.json", SCOPES
         )
         creds = flow.run_local_server(port=0)
         # 將憑證儲存起來以供下次使用
-        with open("token.json", "w") as token:
+        with open(f"{current_directory}/token.json", "w") as token:
             token.write(creds.to_json())
     return creds
+
+
+def load_OAuth_credentials(user_id):
+
+    creds = Credentials.from_authorized_user_file(
+        f"{user_credential_folder}/{user_id}.json", SCOPES
+    )
+
+    return creds
+
+
+def save_OAuth_credentials(user_id, creds):
+
+    cred_path = os.path.join(user_credential_folder, f"{user_id}.json")
+
+    with open(cred_path, "w") as token:
+        token.write(creds.to_json())
+
+
+def get_flow(redirect_uri):
+
+    flow = Flow.from_client_secrets_file(
+        f"{current_directory}/client_secret.json",
+        scopes=SCOPES,
+        redirect_uri=redirect_uri,
+    )
+    return flow
+
+
+def OAuth_user_credential_is_valid(user_id):
+    """
+    判斷user憑證不存在或過期
+    """
+    cred_path = os.path.join(user_credential_folder, f"{user_id}.json")
+
+    if not os.path.exists(cred_path):
+        return False
+
+    else:
+        creds = Credentials.from_authorized_user_file(
+            f"{user_credential_folder}/{user_id}.json", SCOPES
+        )
+
+    if not creds.valid:
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            # 將更新後的憑證儲存起來以供下次使用
+            with open(cred_path, "w") as token:
+                token.write(creds.to_json())
+            return True
+        else:
+            return False
+
+    return True
 
 
 def get_events_in_month(service, calendar_id="primary", year=None, month=None):
@@ -193,16 +249,17 @@ def create_new_event(service, to_create_event):
         print(f"✗ 新增事件失敗: {e}")
 
 
-def create_events_in_calendar(year, month, new_event_dict):
+def create_events_in_calendar(year, month, new_event_dict, service):
     """
     year = 2025
     month = 9
 
     new_event_dict = calender_event_dict # key: date, value: event
     """
-    creds = authenticate_google_calendar()
+    if service == None:
+        creds = authenticate_google_calendar()
 
-    service = build("calendar", "v3", credentials=creds)
+        service = build("calendar", "v3", credentials=creds)
 
     current_event_dict = get_current_month_ocr_events(
         service, calendar_id="primary", year=year, month=month

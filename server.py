@@ -34,7 +34,7 @@ def setup_schedule():
 
         year, month, new_event_dict = text_to_calender_event_dict(texts)
 
-        response = create_events_in_calendar(year, month, new_event_dict)
+        response = create_events_in_calendar(year, month, new_event_dict, service=None)
 
         # 回傳結果
         return (

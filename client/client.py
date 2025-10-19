@@ -7,7 +7,7 @@ url = "http://127.0.0.1:8000/setup-schedule/"
 # url = "https://1129bead8307.ngrok-free.app/setup-schedule/"
 
 # 指定要上傳的圖片路徑
-file_name = "2025_08.jpg"  # 替換成你本地的圖片路徑
+file_name = "2025_11.jpg"  # 替換成你本地的圖片路徑
 file_path = f"./client_image/{file_name}"
 # 使用 requests 上傳檔案
 

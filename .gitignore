@@ -11,5 +11,7 @@ ocr/ocr_key.json
 
 auto_calendar/client_secret.json
 auto_calendar/token.json
+auto_calendar/user_credentials/
+auto_calendar/client_secret_desktop.json
 
 linebot_config.py
