@@ -17,6 +17,8 @@ Auto_Roster 是一個將班表圖片自動轉換為 Google Calendar 事件的工
 - 使用 Google Calendar API 建立/更新事件
 - 提供 Flask 的上傳 API（`/setup-schedule/`）與 Line Bot Webhook（`/callback`）範例
 
+![image](https://github.com/JasonChang0320/Auto_Roster/blob/main/image/flow.png)
+
 ## 專案結構（重點檔案）
 
 - `server.py` - Flask 上傳 API，透過 POST 上傳圖片並建立日曆事件
@@ -37,95 +39,71 @@ Auto_Roster 是一個將班表圖片自動轉換為 Google Calendar 事件的工
 
 - Flask
 - requests
-- line-bot-sdk (line-bot-sdk)
-- google-cloud-vision
-- google-api-python-client
-- google-auth-httplib2
-- google-auth-oauthlib
-- opencv-python
-- numpy
 
-可用 pip 一次安裝（示範）：
+# Auto_Roster
+
+一個把紙本或圖片班表自動轉成 Google Calendar 事件的工具。它會把上傳的班表圖片送到 Google Cloud Vision 做 OCR，解析出每天的班別（例如 BC、DB、JB、OFF、11FBC），再用 Google Calendar API 建立或更新對應日期的事件。
+
+## 主要功能（簡短）
+
+- OCR 擷取圖片文字並儲存 JSON 結果
+- 解析出年、月與每日班別，依班別建立事件（含全天 OFF 的處理）
+- 比對同月已有由 OCR 建立的事件，必要時更新或新增
+- 提供 Flask 上傳 API (`/setup-schedule/`) 與 Line Bot webhook (`/callback`) 範例
+
+## 快速開始（Windows, cmd.exe）
+
+1. 建立虛擬環境並安裝套件：
 
 ```bat
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
 python -m pip install Flask requests line-bot-sdk google-cloud-vision google-api-python-client google-auth-httplib2 google-auth-oauthlib opencv-python numpy
 ```
 
-（若想把依賴寫入 `requirements.txt`，可自行生成）
+2. 放置必要金鑰檔案：
 
-## 設定（必要）
+- 將 Google Cloud Vision service account JSON 放到 `ocr/ocr_key.json`
+- 將 Google OAuth client secret（client_secret.json）放到 `auto_calendar/` 資料夾
 
-1. Google Cloud Vision service account key
-
-   - 建立或下載 service account JSON（需包含 Vision API 權限），放到 `ocr/ocr_key.json` 路徑下。
-   - 檔案名稱與路徑可修改，但需同步調整 `ocr/ocr_utils.py` 的 `KEY_PATH` 或將環境變數改寫碼中讀取位置。
-
-2. Google Calendar OAuth
-
-   - 在 Google Cloud Console 中建立 OAuth 客戶端（桌面應用或 Web），下載 `client_secret.json` 並放到 `auto_calendar/` 資料夾。
-   - 程式第一次運行時會在 `auto_calendar/` 資料夾產生 `token.json`，供後續存取（請勿上傳 token 與金鑰到公開 repository）。
-
-3. Line Bot（選用）
-
-   - 在 `linebot_config.py` 中填入自己的 `CHANNEL_ACCESS_TOKEN` 與 `CHANNEL_SECRET`。
-   - 若要測試 webhook，需把機器人 webhook 指向可由外部存取的 URL（可使用 ngrok 對本機 8000 暴露）。
-
-4. 私密資訊管理
-
-   - 請將 `ocr/ocr_key.json` 與 `auto_calendar/client_secret.json`、`auto_calendar/token.json`（若存在）視為敏感檔案，勿上傳到公開 Git 倉庫。
-
-## 快速使用
-
-1. 啟動 Flask 上傳 API（本機測試）
+3. 啟動本機測試 server：
 
 ```bat
 python server.py
 ```
 
-會在 `http://127.0.0.1:8000/setup-schedule/` 提供一個 POST 上傳點（multipart/form-data，欄位名稱 `file`）。
+上傳端點：POST `http://127.0.0.1:8000/setup-schedule/`，multipart/form-data 欄位名為 `file`。
 
-2. 使用專案內的 client 範例上傳圖片
+4. 使用範例 client 上傳圖檔：
 
 ```bat
 python client\client.py
 ```
 
-`client.py` 會將 `client/client_image/` 中指定的圖片上傳到 `server.py` 的 `/setup-schedule/`，並印出伺服器回傳內容。
-
-3. 或直接啟動 Line Bot server（若已設定 `linebot_config.py`）
+或啟動 Line Bot（已在 `linebot_config.py` 填好 token/secret 且 webhook 可被外界存取）：
 
 ```bat
 python line_bot_server.py
 ```
 
-在 Line 上傳圖片後，Bot 會把圖片下載、呼叫 OCR、解析並建立 Google Calendar 事件，最後回覆使用者處理結果文字。
+## 環境變數與檔案（重要）
 
-## 解析邏輯概要（OCR -> Calendar）
+- `ocr/ocr_key.json`：Google Vision service account（金鑰）
+- `auto_calendar/client_secret.json`：Google OAuth client secret
+- `auto_calendar/token.json`：授權 token（程式會在首次授權時建立）
+- `linebot_config.py`：LINE 的 `CHANNEL_ACCESS_TOKEN` 及 `CHANNEL_SECRET`
 
-1. OCR：`ocr/ocr_utils.py` 使用 Google Cloud Vision 的 document_text_detection，將影像中的字以「由上到下、由左到右」排序，並輸出純文字 `sorted_text`。
-2. 文字解析：`ocr/process_text.py` 會解析日期（年、月）與從某個關鍵詞（例如 `剩餘年假`）之後的每行班別關鍵字，並依據 `CLASS_DICT` 轉換為事件的起訖時間或整天事件（OFF）。
-3. Calendar 建立：`auto_calendar/calendar_utils.py` 會先以 OAuth/credentials 建立 `service`，讀取當月已由 `ocr_service` 建立的事件（以 extendedProperties 判斷），然後比對並更新已存在事件或建立新的事件。
+## 重要檔案說明
 
-## 常見問題與注意事項
+- `ocr/ocr_utils.py`：呼叫 Google Vision、整理文字（由上到下、由左到右），並把 OCR JSON 寫到 `ocr/ocr_result/`。
+- `ocr/process_text.py`：將 OCR 字串解析出年/月及每日班別（使用 `CLASS_DICT`），並輸出 Google Calendar 可用的 event dict。
+- `auto_calendar/calendar_utils.py`：管理 Google Calendar 的認證、讀取當月 OCR 建立的事件、更新或新增事件。
+- `server.py`：簡單的 Flask API，接受上傳圖片並執行整個處理流程。
+- `line_bot_server.py`：Line webhook 範例，接收圖片、跑 OCR、建立事件並回覆結果。
 
-- OCR 質量：圖片品質（解析度、傾斜、雜訊）會直接影響辨識結果。必要時請先對圖片做裁切或預處理。
-- 關鍵字與格式：解析器以特定關鍵字（例如 `剩餘年假`）與 `CLASS_DICT` 內的班別為基準，如有不同班別或不同版型，可能需要調整 `ocr/process_text.py` 的正則或 `CLASS_DICT`。
-- 權限及 OAuth：第一次使用 Google Calendar API 時會開啟瀏覽器進行授權並產生 `token.json`。若想強制重新授權，可刪除 `auto_calendar/token.json` 再次執行。
-- 時區：事件建立使用 `Asia/Taipei` 為時區，若需更換請在 `ocr/process_text.py` 與 `auto_calendar/calendar_utils.py` 中相應修改。
+## 常見問題（快速解答）
 
-## 測試與驗證
-
-- 可以在 `ocr/ocr_result/` 看到 OCR 結果的 JSON 與標記圖（若有輸出）。
-- 使用 `client/client.py` 上傳已知範例圖片，觀察是否於 Google Calendar（primary）中建立正確事件。
-
-## 下一步建議（可選）
-
-- 加入 `requirements.txt` 與範例 `.env` 檔案（或使用 `python-dotenv`）以更好地管理設定與相依性。
-- 將 Line Bot webhook 與 server 整合為同一個更完整的部署流程（Docker、Heroku、GCP Run 等）。
-- 加強 OCR 前處理（傾斜校正、去雜訊）以提升辨識率。
-
-## 聯絡與授權
-
-作者：請參考 repository 的 commit 或聯絡擁有者。
-
-此 README 為專案操作說明；實作細節請參考各模組來源檔案（例如 `ocr/ocr_utils.py`、`ocr/process_text.py`、`auto_calendar/calendar_utils.py`）。
+- OCR 結果不正確：請先確認圖片解析度、裁切是否只保留班表區域，或加入前處理（去雜訊、校正傾斜）。
+- 解析不到年/月或班別：`ocr/process_text.py` 使用簡單的正則與關鍵字匹配，若版型不同需調整 `get_year_month` 或 `CLASS_DICT`。
+- 權限問題：若 Google Calendar API 在第一次運行時無法授權，請檢查 `client_secret.json` 是否正確，或刪除 `auto_calendar/token.json` 後重試授權流程。
