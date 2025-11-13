@@ -74,27 +74,31 @@ def OAuth_user_credential_is_valid(user_id):
     """
     判斷user憑證不存在或過期
     """
-    cred_path = os.path.join(user_credential_folder, f"{user_id}.json")
+    try:
+        cred_path = os.path.join(user_credential_folder, f"{user_id}.json")
 
-    if not os.path.exists(cred_path):
-        return False
-
-    else:
-        creds = Credentials.from_authorized_user_file(
-            f"{user_credential_folder}/{user_id}.json", SCOPES
-        )
-
-    if not creds.valid:
-        if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-            # 將更新後的憑證儲存起來以供下次使用
-            with open(cred_path, "w") as token:
-                token.write(creds.to_json())
-            return True
-        else:
+        if not os.path.exists(cred_path):
             return False
 
-    return True
+        else:
+            creds = Credentials.from_authorized_user_file(
+                f"{user_credential_folder}/{user_id}.json", SCOPES
+            )
+
+        if not creds.valid:
+            if creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+                # 將更新後的憑證儲存起來以供下次使用
+                with open(cred_path, "w") as token:
+                    token.write(creds.to_json())
+                return True
+            else:
+                return False
+
+        return True
+    except Exception as e:
+        print(f"檢查憑證有效性時發生錯誤: {e}")
+        return False
 
 
 def get_events_in_month(service, calendar_id="primary", year=None, month=None):

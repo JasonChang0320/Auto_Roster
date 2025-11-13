@@ -7,7 +7,11 @@ from linebot.models import (
     TextMessage,
     ImageMessage,
     TextSendMessage,
+    TemplateSendMessage,
+    ButtonsTemplate,
+    URIAction,
 )
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from googleapiclient.discovery import build
 
@@ -25,8 +29,16 @@ from linebot_config import CHANNEL_ACCESS_TOKEN, CHANNEL_SECRET
 
 # ====== 設定 ======
 app = Flask(__name__)
+
+# 信任來自 proxy 的 X-Forwarded-* headers
+app.wsgi_app = ProxyFix(
+    app.wsgi_app,
+    x_for=1,  # 信任 1 層 X-Forwarded-For
+    x_proto=1,  # 信任 X-Forwarded-Proto（用來判斷 https）
+    x_host=1,  # 信任 X-Forwarded-Host（用來取得正確 host）
+    x_prefix=1,  # 如果有 X-Forwarded-Prefix
+)
 # =====記得更新======
-BASE_URL = "https://bb4f750f03e0.ngrok-free.app"
 # linebot 上的 webhook url
 # google ocr_calendar 的callback url
 # =================
@@ -60,17 +72,32 @@ def handle_image(event):
     message_id = event.message.id
 
     try:
-        # auth_url = f"{BASE_URL}/start_google_auth/{user_id}"
-        auth_url = url_for("start_google_auth", user_id=user_id, _external=True)
-        auth_url = auth_url.replace("http://", "https://")
         if OAuth_user_credential_is_valid(user_id) == False:
+
+            redirect_uri = url_for("google_oauth_callback", _external=True)
+            redirect_uri = redirect_uri.replace("http://", "https://")
+            flow = get_flow(redirect_uri)
+
+            authorization_url, state = flow.authorization_url(
+                access_type="offline",
+                include_granted_scopes="true",
+                state=user_id,
+                prompt="consent",  # 強制使用者重新同意，確保 refresh_token
+            )
+            buttons_template_message = TemplateSendMessage(
+                alt_text="按鈕訊息",
+                template=ButtonsTemplate(
+                    title="Google 行事曆授權",
+                    text="請點擊下方按鈕，在瀏覽器中完成授權流程",
+                    actions=[URIAction(label="開啟授權頁面", uri=authorization_url)],
+                ),
+            )
 
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(
-                    text=f"需先設定 Google 行事曆授權，請先完成授權流程：\n{auth_url}\n (請在瀏覽器開啟並完成授權)。"
-                ),
+                buttons_template_message,
             )
+
             return
 
         # 建立 Google Calendar 服務
@@ -103,48 +130,6 @@ def handle_image(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=error_msg))
 
 
-@app.route("/google/auth/<user_id>")
-def start_google_auth(user_id):
-
-    redirect_uri = f"{BASE_URL}/google/oauth/callback"
-    flow = get_flow(redirect_uri)
-
-    authorization_url, state = flow.authorization_url(
-        access_type="offline",
-        include_granted_scopes="true",
-        state=user_id,
-        prompt="consent",  # 強制使用者重新同意，確保 refresh_token
-    )
-
-    # ✅ 直接重導向到 Google 授權頁面！
-    # return redirect(authorization_url)
-    return f"""
-            <html>
-            <head><title>請在外部瀏覽器中開啟</title></head>
-            <body style="font-family: Arial, sans-serif; padding: 20px; text-align: center;">
-                <h2>⚠️ 請在 Chrome、Safari 等瀏覽器中開啟</h2>
-                <p>由於安全限制，Google 無法在 LINE 內完成授權。</p>
-                <p>請點擊下方按鈕或複製連結到瀏覽器開啟：</p>
-                <a href="{authorization_url}" 
-                style="display: inline-block; margin: 20px; padding: 10px 20px; 
-                        background: #4285F4; color: white; text-decoration: none; 
-                        border-radius: 5px;"
-                target="_blank">
-                在瀏覽器中開啟授權頁面
-                </a>
-                <p><small>（若無反應，請長按連結 →「在瀏覽器中開啟」）</small></p>
-                <p><input type="text" value="{authorization_url}" id="url" size="80" readonly>
-                <button onclick="copyUrl()">複製連結</button></p>
-                <script>
-                function copyUrl() {{
-                    document.getElementById('url').select();
-                    document.execCommand('copy');
-                    alert('已複製！請貼到瀏覽器網址列');
-                }}
-                </script>
-            </body>
-            </html>
-            """
 
 
 @app.route("/google/oauth/callback")
@@ -159,7 +144,7 @@ def google_oauth_callback():
 
     # 讀取對應的 flow
     try:
-        redirect_uri = f"{BASE_URL}/google/oauth/callback"
+        redirect_uri = url_for("google_oauth_callback", _external=True)
         # 將 request.url 的協議改為 https
         # 因為 ngrok 用 HTTPS，但 Flask 看到的是 HTTP
         authorization_response = request.url
