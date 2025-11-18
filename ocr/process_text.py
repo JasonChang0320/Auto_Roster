@@ -97,12 +97,13 @@ def get_all_class_list(texts):
 
     all_class_list = []
 
-    text_list = texts.replace(" ", "").split("\n")
+    text_list = texts.split("\n")
 
     keyword = "剩餘年假"
 
     start_index = None
     for i, item in enumerate(text_list):
+        item = item.replace(" ", "")
         if keyword in item:
             start_index = i + 1  # 取「之後」的元素
             break
@@ -115,8 +116,9 @@ def get_all_class_list(texts):
     # 使用 re.escape 避免特殊字符問題，並按長度排序（避免短 keyword 先匹配）
     sorted_keywords = sorted(
         keywords, key=len, reverse=True
-    )  # 長的先匹配，避免 BC 先於 11FBC
-    pattern = "|".join(re.escape(k) for k in sorted_keywords)
+    )  # 長的先匹配，避免 BC 先於 11FBC匹配
+    # 使用詞邊界，並對每個關鍵字進行轉義
+    pattern = r"\b(?:" + "|".join(re.escape(k) for k in sorted_keywords) + r")\b"
     regex = re.compile(pattern, re.IGNORECASE)
 
     for i, line in enumerate(filter_text_list):
@@ -182,3 +184,30 @@ def create_calender_event_dict(year, month, current_class_list):
         calender_event_dict[date_key] = event_dict
 
     return calender_event_dict
+
+
+def roster_message(year, month, calender_event_dict):
+
+    reply_lines = [f"📅 {year}年{month}月 班表如下："]
+
+    sorted_dates = sorted(calender_event_dict.keys())
+
+    for i in range(0, len(sorted_dates), 2):
+        date_key1 = sorted_dates[i]
+        day1 = date_key1.split("-")[2]
+        daily_class1 = calender_event_dict[date_key1].get("summary", "無法識別的班別")
+
+        line = f"{day1}日: {daily_class1}"
+
+        # 檢查是否還有下一筆
+        if i + 1 < len(sorted_dates):
+            date_key2 = sorted_dates[i + 1]
+            day2 = date_key2.split("-")[2]
+            daily_class2 = calender_event_dict[date_key2].get(
+                "summary", "無法識別的班別"
+            )
+            line += f" | {day2}日: {daily_class2}"
+
+        reply_lines.append(line)
+
+    return "\n".join(reply_lines)

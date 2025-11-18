@@ -18,7 +18,6 @@ print("當前檔案路徑:", current_file_path)
 current_directory = os.path.dirname(current_file_path)
 
 KEY_PATH = os.path.join(current_directory, "ocr_key.json")
-OCR_PATH = f"{current_directory}/ocr_result"
 
 
 def is_allowed_file(filename: str) -> bool:
@@ -54,24 +53,19 @@ def get_target_image(file):
     return file_path
 
 
-def image_to_text(image_file_path):
-    """Detects text in the file."""
-    """
-    image_file_path = "tmp_images/2025_09.jpg"
+def image_to_text(image_bytes: bytes):
+    """Detects text in the given image bytes.
+
+    `image_bytes` must be raw bytes (bytes or bytearray). Provide an optional
+    `filename` to use when saving the OCR JSON (defaults to a timestamp-based name).
     """
 
-    if not os.path.exists(OCR_PATH):
-        os.makedirs(OCR_PATH)
-        print(f"資料夾 '{OCR_PATH}' 已建立")
-    else:
-        print(f"資料夾 '{OCR_PATH}' 已存在")
+    if not isinstance(image_bytes, (bytes, bytearray)):
+        raise TypeError("image_to_text requires image bytes (bytes or bytearray)")
 
     client = vision.ImageAnnotatorClient.from_service_account_json(KEY_PATH)
 
-    with open(image_file_path, "rb") as image_file:
-        content = image_file.read()
-
-    filename = os.path.basename(image_file_path)
+    content = bytes(image_bytes)
 
     image = vision.Image(content=content)
 
@@ -83,24 +77,16 @@ def image_to_text(image_file_path):
 
     # plot_sorted_result(sorted_lines_dict, image_file_path)
 
-    if sorted_lines_dict:
-        # print(texts[0].description)
+    if sorted_lines_dict == {}:
 
-        with open(
-            os.path.join(OCR_PATH, f"{filename.split(".")[0]}.json"),
-            "w",
-            encoding="utf-8",
-        ) as f:
-            json.dump(sorted_lines_dict, f, ensure_ascii=False, indent=2)
-
-    else:
         print("沒有偵測到文字")
 
-    if response.error.message:
+    if getattr(response, "error", None) and getattr(response.error, "message", None):
         raise Exception(
             "{}\nFor more info on error messages, check: "
             "https://cloud.google.com/apis/design/errors".format(response.error.message)
         )
+
     return sorted_text
 
 
@@ -166,7 +152,7 @@ def get_sorted_context(response):
 
 
 def plot_predict_result(response, image_file_path):
-
+    OCR_PATH = f"{current_directory}/ocr_result"
     # 載入原始圖片
     img = cv2.imread(image_file_path)
 
@@ -220,6 +206,7 @@ def plot_predict_result(response, image_file_path):
 
 
 def plot_sorted_result(sorted_lines_dict, image_file_path):
+    OCR_PATH = f"{current_directory}/ocr_result"
     img = cv2.imread(image_file_path)
     for i, y in enumerate(sorted(sorted_lines_dict.keys())):
         word_info_list = sorted_lines_dict[y]

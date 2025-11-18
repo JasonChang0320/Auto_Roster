@@ -1,4 +1,4 @@
-from flask import Flask, request, abort, url_for, redirect
+from flask import Flask, request, abort, url_for
 import os
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -10,6 +10,9 @@ from linebot.models import (
     TemplateSendMessage,
     ButtonsTemplate,
     URIAction,
+    QuickReply,
+    QuickReplyButton,
+    MessageAction,
 )
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -17,7 +20,7 @@ from googleapiclient.discovery import build
 
 # ====== 你的原有模組 ======
 from ocr.ocr_utils import image_to_text
-from ocr.process_text import text_to_calender_event_dict
+from ocr.process_text import text_to_calender_event_dict, roster_message
 from auto_calendar.calendar_utils import (
     create_events_in_calendar,
     OAuth_user_credential_is_valid,
@@ -25,6 +28,7 @@ from auto_calendar.calendar_utils import (
     save_OAuth_credentials,
     get_flow,
 )
+
 from linebot_config import CHANNEL_ACCESS_TOKEN, CHANNEL_SECRET
 
 # ====== 設定 ======
@@ -42,12 +46,11 @@ app.wsgi_app = ProxyFix(
 # linebot 上的 webhook url
 # google ocr_calendar 的callback url
 # =================
-
-line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
+line_bot_api = LineBotApi(channel_access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
-UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# 儲存使用者上傳圖片後，待確認是否建立行事曆事件的暫存資料
+pending_ocr_dict = {}
 
 
 # ====== Webhook 路由 ======
@@ -70,6 +73,9 @@ def callback():
 def handle_image(event):
     user_id = event.source.user_id
     message_id = event.message.id
+
+    if user_id in pending_ocr_dict.keys():
+        del pending_ocr_dict[user_id]
 
     try:
         if OAuth_user_credential_is_valid(user_id) == False:
@@ -104,32 +110,47 @@ def handle_image(event):
         credentials = load_OAuth_credentials(user_id)
 
         service = build("calendar", "v3", credentials=credentials)
-        # 下載圖片
+        # 下載圖片（不儲存到磁碟，直接用 bytes 處理）
         message_content = line_bot_api.get_message_content(message_id)
-        file_path = os.path.join(UPLOAD_FOLDER, f"{message_id}.jpg")
-        with open(file_path, "wb") as f:
-            for chunk in message_content.iter_content():
-                f.write(chunk)
+        content_bytes = b""
+        for chunk in message_content.iter_content():
+            content_bytes += chunk
 
-        # 呼叫你的 OCR 處理流程
-        texts = image_to_text(file_path)
+        # 呼叫OCR 處理流程（直接傳 bytes）
+        texts = image_to_text(content_bytes)
         year, month, new_event_dict = text_to_calender_event_dict(texts)
 
-        create_events_in_calendar(year, month, new_event_dict, service)
+        pending_ocr_dict[user_id] = {
+            "year": year,
+            "month": month,
+            "event_dict": new_event_dict,
+            "service": service,
+        }
 
-        # 回覆成功訊息
-        reply_text = (
-            "✅ 已成功解析圖片並建立行事曆事件！\n"
-            f"偵測文字：\n{texts[:100]}..."  # 避免太長
+        reply_text = roster_message(year, month, new_event_dict)
+
+        reply_msg = TextSendMessage(
+            text=f"OCR 辨識結果如下，請問是否要將此班表新增至您的 Google 行事曆？\n\n{reply_text}",
+            quick_reply=QuickReply(
+                items=[
+                    QuickReplyButton(
+                        action=MessageAction(label="✅ 同意", text="同意")
+                    ),
+                    QuickReplyButton(
+                        action=MessageAction(label="❌ 不同意", text="不同意")
+                    ),
+                ]
+            ),
         )
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
+
+        line_bot_api.reply_message(event.reply_token, reply_msg)
+
+        return
 
     except Exception as e:
         error_msg = f"❌ 處理失敗：{str(e)}"
         print("Error:", e)
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=error_msg))
-
-
 
 
 @app.route("/google/oauth/callback")
@@ -164,12 +185,12 @@ def google_oauth_callback():
 
         return """
         <html>
-          <head><title>授權成功</title></head>
-          <body style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2>✅ 授權成功！</h2>
-            <p>你現在可以回到 LINE，上傳行事曆圖片，Bot 會自動幫你建立事件。</p>
-            <p><small>此頁面可關閉。</small></p>
-          </body>
+            <head><title>授權成功</title></head>
+            <body style="font-family: Arial, sans-serif; padding: 30px; font-size: 18px; line-height: 1.6;">
+                <h2 style="font-size: 28px; color: #2e7d32;">✅ 授權成功！</h2>
+                <p>你現在可以回到 LINE，上傳行事曆圖片，Bot 會自動幫你建立事件。</p>
+                <p><small style="font-size: 14px; color: #666;">此頁面可關閉。</small></p>
+            </body>
         </html>
         """
     except Exception as e:
@@ -180,10 +201,56 @@ def google_oauth_callback():
 # ====== 處理文字訊息（可選）=====
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text(event):
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text="請上傳一張包含行事曆的圖片，我會幫你自動建立事件！"),
-    )
+    user_id = event.source.user_id
+    text = event.message.text
+
+    if text == "同意" and user_id in pending_ocr_dict.keys():
+
+        try:
+            # 回覆成功訊息
+            reply_text = "正在將班表新增至您的 Google 行事曆，請稍候..."
+            line_bot_api.reply_message(
+                event.reply_token, TextSendMessage(text=reply_text)
+            )
+            create_events_in_calendar(
+                pending_ocr_dict[user_id]["year"],
+                pending_ocr_dict[user_id]["month"],
+                pending_ocr_dict[user_id]["event_dict"],
+                pending_ocr_dict[user_id]["service"],
+            )
+
+            # 回覆成功訊息
+            success_text = "✅ 已成功將班表新增至您的 Google 行事曆！"
+            line_bot_api.push_message(
+                to=event.source.user_id, messages=TextSendMessage(text=success_text)
+            )
+
+        except Exception as e:
+            error_msg = f"❌ 建立行事曆事件失敗：{str(e)}"
+            print("Error:", e)
+            line_bot_api.reply_message(
+                event.reply_token, TextSendMessage(text=error_msg)
+            )
+        finally:
+            # 刪除已處理的待確認資料
+            del pending_ocr_dict[user_id]
+
+    elif text == "不同意" and user_id in pending_ocr_dict.keys():
+        # 使用者不同意，刪除待確認資料
+        del pending_ocr_dict[user_id]
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="已取消班表新增。如需再次上傳圖片，請重新傳送。"),
+        )
+    else:
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="請上傳一張包含行事曆的圖片，我會幫你自動建立事件！"),
+        )
+
+    if user_id in pending_ocr_dict.keys():
+
+        del pending_ocr_dict[user_id]
 
 
 # ====== 啟動伺服器 ======

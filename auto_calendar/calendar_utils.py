@@ -5,8 +5,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow, Flow
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-from flask import url_for
+import json
 
 # 如果修改了授權範圍，請刪除 token.json 檔案
 # 這是為了確保每次都重新進行授權流程
@@ -62,11 +61,19 @@ def save_OAuth_credentials(user_id, creds):
 
 def get_flow(redirect_uri):
 
-    flow = Flow.from_client_secrets_file(
-        f"{current_directory}/client_secret.json",
-        scopes=SCOPES,
-        redirect_uri=redirect_uri,
-    )
+    oauth_credentials_json = os.get_env("GOOGLE_OAUTH_CREDENTIALS")
+
+    if oauth_credentials_json:
+        credentials_dict = json.loads(oauth_credentials_json)
+        print("✅ 使用 JSON 環境變數建立 OAuth Flow")
+
+        flow = Flow.from_client_config(client_config=credentials_dict, scopes=SCOPES)
+    else:
+        flow = Flow.from_client_secrets_file(
+            f"{current_directory}/client_secret.json",
+            scopes=SCOPES,
+            redirect_uri=redirect_uri,
+        )
     return flow
 
 
