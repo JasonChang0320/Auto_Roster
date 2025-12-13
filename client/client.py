@@ -1,5 +1,4 @@
 import requests
-import time
 
 # 設定上傳的 URL
 url = "http://127.0.0.1:8000/setup-schedule/"

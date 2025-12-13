@@ -1,56 +1,29 @@
 from google.cloud import vision
-import json
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
-from pathlib import Path
-import shutil
-import base64
-from ocr.ocr_config import ALLOWED_EXTENSIONS
 import os
 import cv2
 import numpy as np
 
 # 獲取當前檔案的絕對路徑
 current_file_path = os.path.abspath(__file__)
-print("當前檔案路徑:", current_file_path)
 
 # 獲取當前檔案所在的目錄
 current_directory = os.path.dirname(current_file_path)
 
-KEY_PATH = os.path.join(current_directory, "ocr_key.json")
+# KEY_PATH = os.path.join(current_directory, "ocr_key.json")
 
-
-def is_allowed_file(filename: str) -> bool:
-    return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
-
-
-def get_target_image(file):
-
-    if not file:
-        raise HTTPException(status_code=400, detail="No file uploaded")
-
-    if not is_allowed_file(file.filename):
-        raise HTTPException(
-            status_code=400, detail="File type not allowed. Only images are accepted."
-        )
-
-    # 儲存圖片到本地
-    folder_name = f"{current_directory}/tmp_images"
-
-    if not os.path.exists(folder_name):
-        os.makedirs(folder_name)
-        print(f"資料夾 '{folder_name}' 已建立")
-    else:
-        print(f"資料夾 '{folder_name}' 已存在")
-
-    try:
-        file_path = f"{folder_name}/{file.filename}"
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"File save failed: {e}")
-
-    return file_path
+OCR_CREDENTIAL_DICT = {
+    "type": os.getenv("OCR_TYPE"),
+    "project_id": os.getenv("OCR_PROJECT_ID"),
+    "private_key_id": os.getenv("OCR_PRIVATE_KEY_ID"),
+    "private_key": os.getenv("OCR_PRIVATE_KEY"),
+    "client_email": os.getenv("OCR_CLIENT_EMAIL"),
+    "client_id": os.getenv("OCR_CLIENT_ID"),
+    "auth_uri": os.getenv("OCR_AUTH_URI"),
+    "token_uri": os.getenv("OCR_TOKEN_URI"),
+    "auth_provider_x509_cert_url": os.getenv("OCR_AUTH_PROVIDER_X509_CERT_URL"),
+    "client_x509_cert_url": os.getenv("OCR_CLIENT_X509_CERT_URL"),
+    "universe_domain": os.getenv("OCR_UNIVERSE_DOMAIN"),
+}
 
 
 def image_to_text(image_bytes: bytes):
@@ -63,7 +36,13 @@ def image_to_text(image_bytes: bytes):
     if not isinstance(image_bytes, (bytes, bytearray)):
         raise TypeError("image_to_text requires image bytes (bytes or bytearray)")
 
-    client = vision.ImageAnnotatorClient.from_service_account_json(KEY_PATH)
+    # client = vision.ImageAnnotatorClient.from_service_account_json(KEY_PATH)
+    try:
+        client = vision.ImageAnnotatorClient.from_service_account_info(
+            OCR_CREDENTIAL_DICT
+        )
+    except Exception as e:
+        raise Exception(f"無法建立 Google Vision 客戶端: {e}")
 
     content = bytes(image_bytes)
 

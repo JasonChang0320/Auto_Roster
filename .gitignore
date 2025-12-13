@@ -5,6 +5,8 @@
 *.jpeg
 *.pptx
 
+.env
+
 **/.vscode/
 
 ocr/ocr_key.json

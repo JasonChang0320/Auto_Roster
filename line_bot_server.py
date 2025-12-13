@@ -18,7 +18,14 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from googleapiclient.discovery import build
 
-# ====== 你的原有模組 ======
+if os.path.exists(".env"):
+    print(".env 檔案存在，使用.env 環境變數")
+
+    from dotenv import load_dotenv
+
+    load_dotenv(".env")
+
+# ====== 自訂模組 ======
 from ocr.ocr_utils import image_to_text
 from ocr.process_text import text_to_calender_event_dict, roster_message
 from auto_calendar.calendar_utils import (
@@ -29,8 +36,12 @@ from auto_calendar.calendar_utils import (
     get_flow,
 )
 
-from linebot_config import CHANNEL_ACCESS_TOKEN, CHANNEL_SECRET
+# from linebot_config import CHANNEL_ACCESS_TOKEN, CHANNEL_SECRET
 
+
+CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
+
+CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
 # ====== 設定 ======
 app = Flask(__name__)
 
