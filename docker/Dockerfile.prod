@@ -1,0 +1,27 @@
+FROM python:3.13.5-slim
+
+WORKDIR /app
+
+# 安裝必要系統套件（和開發環境相同的最小需求）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 複製並安裝 Python 相依（利用快取）
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 複製專案原始碼
+COPY . .
+
+# 生產環境設定：關閉 debug
+# 在 production image 中只保留與 app 行為相關的設定；
+ENV FLASK_ENV=production
+ENV FLASK_DEBUG=0
+
+EXPOSE 8000
+
+# 使用 gunicorn 作為生產用 WSGI server（3 workers，可視 CPU 調整）
+# 啟動 Flask app：module: `line_bot_server`, app 變數名為 `app`
+CMD ["gunicorn", "-w", "3", "-b", "0.0.0.0:8000", "line_bot_server:app"]

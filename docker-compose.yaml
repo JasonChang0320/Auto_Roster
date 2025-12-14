@@ -1,7 +1,8 @@
 # docker-compose.yml
 version: '3.8'
 services:
-  app:
+  app_dev:
+    profiles: ["dev"]
     build:
       context: .
       dockerfile: docker/Dockerfile.dev
@@ -9,7 +10,7 @@ services:
       - "8000:8000" # 對應主機的8000端口到容器的8000端口
     volumes:
       - .:/app                # 掛載原始碼
-      - ./.env:/app/.env      #掛載 .env 進容器
+      - ./.env:/app/.env      # 掛載 .env 進容器
     environment:
       - FLASK_APP=line_bot_server.py
       - FLASK_ENV=development
@@ -17,3 +18,17 @@ services:
       - FLASK_RUN_HOST=0.0.0.0
       - FLASK_RUN_PORT=8000
     command: flask run --host=0.0.0.0 --port=8000
+
+  app_prod:
+    profiles: ["prod"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.prod
+    image: auto_roster:prod
+    ports:
+      - "8000:8000"
+    volumes: []
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+    restart: unless-stopped
