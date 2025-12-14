@@ -31,20 +31,29 @@ current_file_path = os.path.abspath(__file__)
 # 獲取當前檔案所在的目錄
 current_directory = os.path.dirname(current_file_path)
 
-user_credential_folder = f"{current_directory}/user_credentials"
+# 使用環境變數可覆寫憑證儲存位置（方便在 Render 或其他平台掛載 persistent disk）
+# 預設為 repo 內的 auto_calendar/user_credentials
+user_credential_folder = os.getenv(
+    "USER_CREDENTIAL_FOLDER", f"{current_directory}/user_credentials"
+)
+
+# 確保憑證目錄存在（若使用者在運行時建立憑證，需可寫）
+os.makedirs(user_credential_folder, exist_ok=True)
 
 
 def load_OAuth_credentials(user_id):
+    cred_file = os.path.join(user_credential_folder, f"{user_id}.json")
 
-    creds = Credentials.from_authorized_user_file(
-        f"{user_credential_folder}/{user_id}.json", SCOPES
-    )
+    if not os.path.exists(cred_file):
+        raise FileNotFoundError(f"Credential file not found: {cred_file}")
 
+    creds = Credentials.from_authorized_user_file(cred_file, SCOPES)
     return creds
 
 
 def save_OAuth_credentials(user_id, creds):
-
+    # 確保目錄存在，再寫入憑證
+    os.makedirs(user_credential_folder, exist_ok=True)
     cred_path = os.path.join(user_credential_folder, f"{user_id}.json")
 
     with open(cred_path, "w") as token:
