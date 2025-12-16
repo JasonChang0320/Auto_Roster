@@ -264,6 +264,12 @@ def handle_text(event):
         del pending_ocr_dict[user_id]
 
 
+# monitoring route
+@app.route("/health", methods=["GET"])
+def health_check():
+    return "server is running", 200
+
+
 # ====== 啟動伺服器 ======
 if __name__ == "__main__":
     print("Starting Line Bot server on http://127.0.0.1:8000")
