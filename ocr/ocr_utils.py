@@ -69,6 +69,26 @@ def image_to_text(image_bytes: bytes):
     return sorted_text
 
 
+def read_image_bytes(file_path: str) -> bytes:
+    """Read image bytes from a file.
+
+    This helper is useful when you want to pass raw bytes into `image_to_text`.
+    """
+
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(f"Image file not found: {file_path}")
+
+    with open(file_path, "rb") as f:
+        return f.read()
+
+
+def image_file_to_text(file_path: str) -> str:
+    """Read an image from disk and run OCR on it."""
+
+    image_bytes = read_image_bytes(file_path)
+    return image_to_text(image_bytes)
+
+
 def get_sorted_context(response):
     sorted_text = ""
     # 收集所有 word + 座標 + 文字
