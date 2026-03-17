@@ -110,12 +110,13 @@ def get_all_class_list(texts):
     sorted_keywords = sorted(
         keywords, key=len, reverse=True
     )  # 長的先匹配，避免 BC 先於 11FBC匹配
-    # 使用詞邊界，並對每個關鍵字進行轉義
-    pattern = r"\b(?:" + "|".join(re.escape(k) for k in sorted_keywords) + r")\b"
+    # 不使用詞邊界，因為班別可能連續出現
+    pattern = r"(?:" + "|".join(re.escape(k) for k in sorted_keywords) + r")"
     regex = re.compile(pattern, re.IGNORECASE)
 
     for i, line in enumerate(filter_text_list):
         matches = regex.findall(line)  # 找出所有匹配的 keyword
+        # print(f"第 {i+1} 行: {line} -> 匹配到的班別: {matches}")
         if matches:
             # 轉成大寫或原樣保留都可以
             matches = [m.upper() for m in matches]  # 統一格式
